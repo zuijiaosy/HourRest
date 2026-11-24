@@ -4,13 +4,13 @@
 
 <p align="center">每到整点，温和而坚定地提醒你起身活动 5–10 分钟的 macOS 菜单栏小工具。</p>
 
-> **English** — HourRest is a tiny, native macOS menu bar app that covers your screen at the top of every hour and asks you to get up and move for 5–10 minutes. A calm full-screen overlay with a one-minute heads-up, limited snoozes and a hold-to-skip button. Pure AppKit + SwiftUI, no dependencies, MIT licensed. The UI is in Simplified Chinese.
+> **English** — HourRest is a tiny, native macOS menu bar app that covers your screen at the top of every hour and asks you to get up and move for 5–10 minutes. A one-minute heads-up, then a calm full-screen countdown that starts on its own and closes itself when the break is over; one click ends it early. Pure AppKit + SwiftUI, no dependencies, MIT licensed. The UI is in Simplified Chinese.
 
-![全屏提醒](docs/screenshots/overlay-prompting-light.png)
+![整点全屏休息](docs/screenshots/overlay-resting-light.png)
 
-| 休息中（深色） | 休息完成 |
+| 深色模式 | 副屏 |
 |---|---|
-| ![休息中（深色）](docs/screenshots/overlay-resting-dark.png) | ![休息完成](docs/screenshots/overlay-completed-light.png) |
+| ![深色模式](docs/screenshots/overlay-resting-dark.png) | ![副屏](docs/screenshots/overlay-secondary-dark.png) |
 
 | 菜单栏面板 | 设置 |
 |---|---|
@@ -22,9 +22,9 @@
 
 ## 特点
 
-- **整点全屏提醒**：覆盖所有显示器，光标所在屏可操作，其他屏只显示倒计时；在全屏应用里也会原地出现。
+- **到点直接休息**：整点全屏覆盖所有显示器并直接开始倒计时，结束后自动关闭，全程不用点。在全屏应用里也会原地出现。
 - **提前 1 分钟预告**：右上角小窗，不抢焦点，留时间保存手头的工作。
-- **不容易被随手关掉**：Esc 关不掉；跳过要长按 1.5 秒（键盘和 VoiceOver 用户改为二次确认）；同一次提醒最多推迟 2 次。
+- **想退出点一下**：不想休息就点「提前结束」，立即关闭，不用确认。Esc 和 Return 不会关闭，弹出时正在打字也不会误关。
 - **识趣**：摄像头在用（开会）时自动顺延；刚休息完 15 分钟内不再提醒；合盖错过的整点不补弹；可暂停 1 小时或今天。
 - **小而原生**：零依赖，菜单栏常驻、无 Dock 图标，跟随系统浅色 / 深色、减弱动态效果、降低透明度。
 
@@ -90,21 +90,18 @@ swift build && .build/debug/HourRest -snapshotDir /tmp/hourrest-shots
 /usr/bin/log show --last 2h --predicate 'subsystem == "io.github.zuijiaosy.HourRest"' --info
 ```
 
-会列出每次算出的下一次提醒、触发、跳过原因（休眠错过 / 会议顺延 / 用户操作）。在 zsh 里要写 `/usr/bin/log`，否则会调用 shell 自带的同名命令。
+会列出每次算出的下一次提醒、触发、跳过原因（休眠错过 / 会议顺延）、提前结束或完成。在 zsh 里要写 `/usr/bin/log`，否则会调用 shell 自带的同名命令。
 
 ### 手动测试清单
 
 | 场景 | 预期 |
 |---|---|
 | 整点前 1 分钟 | 右上角出现预告小窗，不抢焦点；菜单栏图标变实心并显示 `1m` |
-| 预告上点「推迟」 | 推迟到整点后 5 分钟，算一次推迟 |
-| 整点到达 | 所有显示器全屏；光标所在屏有按钮，其他屏只显示倒计时 |
-| 正在别的应用里打字时弹出 | Return 开始休息；按键不会漏进被挡住的编辑器 |
-| 按 Esc（提醒 / 休息中） | 不关闭；有确认条时只收起确认条 |
-| 单击「长按跳过本次」/ 按住后拖出按钮 | 不跳过；按住 1.5 秒才跳过 |
-| Tab 聚焦跳过按钮后按空格或 Return | 出现「确定跳过这次休息？」确认条 |
-| 推迟两次后 | 推迟按钮变成「已达推迟上限」并置灰 |
-| 休息倒计时结束 | 完成态，计数 +1；Return 或 Esc 回到工作 |
+| 预告上点「推迟」 | 推迟到整点后 5 分钟，到时直接开始休息 |
+| 整点到达 | 所有显示器全屏并直接开始倒计时；光标所在屏有「提前结束」，其他屏只显示倒计时 |
+| 正在别的应用里打字时弹出 | Return、Esc 都不会关闭；按键不会漏进被挡住的编辑器 |
+| 点「提前结束」 | 立即关闭，不弹确认，不计入今日次数 |
+| 休息倒计时结束 | 播放提示音并自动关闭，计数 +1 |
 | 暂停 1 小时 / 今天，再点一次 | 图标变 `moon.zzz` 并半透明；再点同一项取消暂停 |
 | 合盖休眠后唤醒 | 错过的整点不补弹；离下个整点不到 3 分钟时，推迟到唤醒后 5 分钟 |
 | 打开摄像头（开会） | 整点提醒顺延，每 5 分钟复查 |
@@ -115,9 +112,9 @@ swift build && .build/debug/HourRest -snapshotDir /tmp/hourrest-shots
 Sources/HourRestCore/Schedule.swift   纯逻辑：下个整点、生效时段、暂停、推迟合并、冷却、唤醒缓冲（有单测）
 Sources/HourRest/
   ReminderEngine.swift      状态机：空闲 → 预告 → 全屏 / 推迟 / 会议顺延；每秒按绝对时间检查，不会漂移
-  RestSession.swift         单次全屏提醒：提醒到达 → 休息中 → 完成
+  RestSession.swift         单次全屏休息：出现即倒计时，结束或提前结束即关闭
   OverlayController.swift   多显示器全屏非激活面板、热插拔、Esc 拦截
-  OverlayViews.swift        全屏层界面、长按跳过
+  OverlayViews.swift        全屏层界面
   PreAlertController.swift  整点前 1 分钟预告
   StatusBarController.swift 菜单栏图标与弹出面板
   SettingsWindow.swift      设置窗口

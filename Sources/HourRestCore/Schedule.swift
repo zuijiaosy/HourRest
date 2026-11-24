@@ -26,8 +26,6 @@ public struct SchedulePolicy: Equatable, Sendable {
     public var intervalMinutes: Int
     /// 每次推迟的分钟数。
     public var snoozeMinutes: Int
-    /// 同一次提醒最多推迟几次。
-    public var maxSnoozes: Int
     /// 推迟目标距离下一次提醒不足该时长时，直接合并到下一次提醒。
     public var mergeThreshold: TimeInterval
     /// 距上次完成休息不足该时长时，跳过紧邻的那次提醒。
@@ -48,7 +46,7 @@ public struct SchedulePolicy: Equatable, Sendable {
     public var breakDurationOverride: TimeInterval?
 
     public static let standard = SchedulePolicy(
-        intervalMinutes: 60, snoozeMinutes: 5, maxSnoozes: 2,
+        intervalMinutes: 60, snoozeMinutes: 5,
         mergeThreshold: 10 * 60, cooldown: 15 * 60, preAlertLead: 60,
         wakeGuard: 3 * 60, wakeGrace: 5 * 60, missTolerance: 90,
         meetingRecheck: 5 * 60, ignoresActiveWindow: false, breakDurationOverride: nil
@@ -58,7 +56,7 @@ public struct SchedulePolicy: Equatable, Sendable {
     public static func debug(intervalMinutes: Int, breakSeconds: TimeInterval?) -> SchedulePolicy {
         let interval = max(1, intervalMinutes)
         return SchedulePolicy(
-            intervalMinutes: interval, snoozeMinutes: 1, maxSnoozes: 2,
+            intervalMinutes: interval, snoozeMinutes: 1,
             mergeThreshold: 0, cooldown: 0, preAlertLead: min(60, TimeInterval(interval * 60) / 2),
             wakeGuard: 30, wakeGrace: 60, missTolerance: 90,
             meetingRecheck: 60, ignoresActiveWindow: true, breakDurationOverride: breakSeconds

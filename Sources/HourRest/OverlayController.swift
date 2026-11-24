@@ -44,8 +44,8 @@ final class OverlayController {
         rebuildWindows(animated: !alreadyShowing)
         installKeyMonitor()
 
-        if session.stage == .prompting {
-            announce("到整点了，建议休息 \(Fmt.duration(session.breakDuration))")
+        if case .scheduled = session.kind {
+            announce("到整点了，休息 \(Fmt.duration(session.total))，倒计时结束后自动关闭")
         }
     }
 
@@ -63,7 +63,7 @@ final class OverlayController {
         removeKeyMonitor()
         let closing = windows
         windows = []
-        // 淡出期间不再接受点击和按键，避免双击「推迟」之类的重复操作。
+        // 淡出期间不再接受点击和按键，避免连点「提前结束」之类的重复操作。
         closing.forEach {
             $0.ignoresMouseEvents = true
             $0.isPrimary = false
@@ -133,7 +133,7 @@ final class OverlayController {
         windows.first(where: \.isPrimary)?.makeKey()
     }
 
-    /// Esc 不直接关闭：交给 session 判断（只在完成态 / 预览模式放行）。
+    /// Esc 不直接关闭：交给 session 判断（只在预览模式放行）。
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in

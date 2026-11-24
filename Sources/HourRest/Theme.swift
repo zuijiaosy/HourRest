@@ -18,7 +18,6 @@ enum Theme {
     static let accentSoft = dynamic(light: rgba(38, 109, 93, 0.12), dark: rgba(82, 183, 158, 0.16))
     static let paused = dynamic(light: hex(0xB26A00), dark: hex(0xE5A93B))
     static let pausedSoft = dynamic(light: rgba(178, 106, 0, 0.12), dark: rgba(229, 169, 59, 0.16))
-    static let success = dynamic(light: hex(0x247A53), dark: hex(0x5AC793))
     static let ringTrack = dynamic(light: rgba(28, 36, 33, 0.10), dark: rgba(240, 246, 243, 0.12))
 
     private static func dynamic(light: NSColor, dark: NSColor) -> Color {
@@ -60,27 +59,24 @@ struct VisualEffectBackground: NSViewRepresentable {
 struct PillButtonStyle: ButtonStyle {
     var prominent: Bool
     var minWidth: CGFloat = 0
-    /// 全屏层主/次按钮 44 pt；行内确认条里的小按钮 30 pt。
-    var height: CGFloat = 44
 
     func makeBody(configuration: Configuration) -> some View {
-        PillButton(configuration: configuration, prominent: prominent, minWidth: minWidth, height: height)
+        PillButton(configuration: configuration, prominent: prominent, minWidth: minWidth)
     }
 
     private struct PillButton: View {
         let configuration: Configuration
         let prominent: Bool
         let minWidth: CGFloat
-        let height: CGFloat
         @Environment(\.isEnabled) private var isEnabled
         @State private var hovering = false
 
         var body: some View {
             configuration.label
-                .font(.system(size: height >= 40 ? 15 : 13, weight: .medium))
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(prominent ? Theme.onAccent : Theme.textPrimary)
-                .padding(.horizontal, height >= 40 ? (prominent ? 24 : 20) : 14)
-                .frame(minWidth: minWidth, minHeight: height)
+                .padding(.horizontal, prominent ? 24 : 20)
+                .frame(minWidth: minWidth, minHeight: 44)
                 .background(
                     Capsule().fill(prominent
                                    ? (hovering ? Theme.accentHover : Theme.accent)

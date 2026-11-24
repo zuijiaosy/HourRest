@@ -50,9 +50,7 @@ final class ReminderEngine: ObservableObject {
     private var preAlertDismissed = false
     /// 当前这一轮提醒原定的整点。
     private var anchor: Date?
-    private var snoozeCount = 0
     private var lastCompleted: Date?
-    private var countedCurrentSession = false
     private var timer: Timer?
     /// 应用生命周期内常驻，无需移除。
     private var observers: [NSObjectProtocol] = []
@@ -145,7 +143,7 @@ final class ReminderEngine: ObservableObject {
             goIdle(now)
             return
         }
-        // 会议顺延期间若又跨过了整点，标签更新为最近的整点，推迟次数重新计算。
+        // 会议顺延期间若又跨过了整点，标签更新为最近的整点。
         let latest = schedule.latestReminder(from: anchor, notAfter: now)
         if case .deferred = phase, !schedule.isInActivePeriod(now),
            now.timeIntervalSince(latest) >= TimeInterval(schedule.policy.intervalMinutes * 60) {
@@ -153,7 +151,6 @@ final class ReminderEngine: ObservableObject {
             goIdle(now)
             return
         }
-        if latest != anchor { snoozeCount = 0 }
         self.anchor = latest
 
         if settings.deferDuringMeetings, meetings.isInMeeting() {
@@ -162,20 +159,14 @@ final class ReminderEngine: ObservableObject {
             phase = .deferred(until: now.addingTimeInterval(schedule.policy.meetingRecheck))
             return
         }
-        log.info("触发全屏提醒")
-        present(RestSession(
-            kind: .scheduled(anchor: latest, snoozed: snoozeCount > 0, due: due),
-            breakDuration: schedule.breakDuration,
-            snoozeMinutes: schedule.policy.snoozeMinutes,
-            snoozesLeft: max(0, schedule.policy.maxSnoozes - snoozeCount),
-            completedToday: todayCount
-        ))
+        log.info("触发全屏提醒，直接开始休息")
+        playSound("Tink")
+        present(RestSession(kind: .scheduled(anchor: latest), breakDuration: schedule.breakDuration))
     }
 
     private func present(_ s: RestSession) {
         previewSession = nil  // 真正的提醒优先于正在进行的预览
         ui?.hidePreAlert()
-        countedCurrentSession = false
         bind(s)
         session = s
         phase = .overlay
@@ -190,37 +181,22 @@ final class ReminderEngine: ObservableObject {
     }
 
     private func handle(_ event: RestSession.Event, from s: RestSession) {
-        // 淡出中的旧会话（双击、紧跟着按 Return）不再生效。
+        // 淡出中的旧会话（如连点两下「提前结束」）不再生效。
         guard s === (s.isPreview ? previewSession : session) else { return }
         let now = Date()
         log.info("全屏提醒事件：\(String(describing: event), privacy: .public)\(s.isPreview ? "（预览）" : "", privacy: .public)")
-        if event == .completed { ui?.announce("休息完成") }
-        if s.isPreview {
-            switch event {
-            case .startedRest, .completed: playSound(for: event)
-            default: closePreview()
-            }
-            return
+        if event == .completed {
+            ui?.announce("休息完成")
+            playSound("Glass")
         }
-        switch event {
-        case .startedRest:
-            playSound(for: event)
-        case .completed:
-            playSound(for: event)
-            if !countedCurrentSession {
-                countedCurrentSession = true
-                todayCount += 1
-                s.completedToday = todayCount
-                saveCount(now)
-            }
+        if s.isPreview { return closePreview() }
+        if event == .completed {
+            todayCount += 1
+            saveCount(now)
             lastCompleted = now
             defaults.set(now, forKey: Key.lastCompleted)
-        case .snoozed:
-            guard case let .scheduled(_, _, due) = s.kind else { return goIdle(now) }
-            applySnooze(now: now, due: due)
-        case .skipped, .endedEarly, .dismissed:
-            goIdle(now)
         }
+        goIdle(now)
     }
 
     private func applySnooze(now: Date, due: Date) {
@@ -229,7 +205,6 @@ final class ReminderEngine: ObservableObject {
             goIdle(now)
             nextReminder = next
         case let .snoozed(until):
-            snoozeCount += 1
             if anchor == nil { anchor = due }
             session = nil
             ui?.hideOverlay()
@@ -242,7 +217,6 @@ final class ReminderEngine: ObservableObject {
         let hadOverlay = session != nil
         phase = .idle
         anchor = nil
-        snoozeCount = 0
         session = nil
         if hadOverlay { ui?.hideOverlay() }
         ui?.hidePreAlert()
@@ -255,9 +229,7 @@ final class ReminderEngine: ObservableObject {
     func restNow() {
         guard phase != .overlay else { return }
         anchor = nil
-        snoozeCount = 0
-        present(RestSession(kind: .manual, breakDuration: schedule.breakDuration,
-                            snoozeMinutes: schedule.policy.snoozeMinutes, snoozesLeft: 0, completedToday: todayCount))
+        present(RestSession(kind: .manual, breakDuration: schedule.breakDuration))
     }
 
     /// 预告胶囊上的「推迟」。
@@ -296,9 +268,7 @@ final class ReminderEngine: ObservableObject {
     /// 设置窗口「预览全屏提醒」：不影响计数与调度。
     func preview() {
         guard phase != .overlay else { return }
-        let s = RestSession(kind: .preview, breakDuration: schedule.breakDuration,
-                            snoozeMinutes: schedule.policy.snoozeMinutes,
-                            snoozesLeft: schedule.policy.maxSnoozes, completedToday: todayCount)
+        let s = RestSession(kind: .preview, breakDuration: schedule.breakDuration)
         bind(s)
         previewSession = s
         ui?.hidePreAlert()
@@ -341,12 +311,8 @@ final class ReminderEngine: ObservableObject {
         let now = Date()
         self.now = now
         if let p = pausedUntil, now >= p { resume() }
-        if phase == .overlay {
-            // 合盖前停在「提醒到达」没处理，醒来时它已过时，收起而不是继续挂着几小时前的提醒。
-            guard let s = session, s.stage == .prompting, case let .scheduled(_, _, due) = s.kind,
-                  now.timeIntervalSince(due) >= TimeInterval(schedule.policy.intervalMinutes * 30) else { return }
-            log.info("唤醒：收起过时的提醒")
-        }
+        // 休息中合盖：倒计时按绝对时间计算，下一次 tick 自然走完并关闭。
+        if phase == .overlay { return }
         goIdle(now)
         guard pausedUntil == nil, let next = nextReminder,
               let delayed = schedule.wakeAdjustedFire(now: now, next: next) else { return }
@@ -387,8 +353,7 @@ final class ReminderEngine: ObservableObject {
         defaults.set(todayCount, forKey: Key.count)
     }
 
-    private func playSound(for event: RestSession.Event) {
-        guard settings.soundEnabled else { return }
-        NSSound(named: event == .completed ? "Glass" : "Tink")?.play()
+    private func playSound(_ name: String) {
+        if settings.soundEnabled { NSSound(named: name)?.play() }
     }
 }
