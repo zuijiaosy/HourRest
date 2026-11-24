@@ -34,7 +34,7 @@
 
 ### 下载
 
-到 [Releases](https://github.com/zuijiaosy/HourRest/releases/latest) 下载 `HourRest-x.y.z.zip`，解压后把 `HourRest.app` 拖进「应用程序」。
+到 [Releases](https://github.com/zuijiaosy/HourRest/releases/latest) 下载 `HourRest-x.y.z.dmg`，双击打开后把 `HourRest.app` 拖到旁边的「应用程序」文件夹。
 
 应用没有经过 Apple 公证，第一次打开会被 Gatekeeper 拦下。在终端执行一次下面的命令即可正常打开：
 
@@ -65,7 +65,7 @@ swift build                 # 编译
 ./scripts/test.sh           # 单测（Swift Testing）；脚本会补上只装 CLT 时缺的框架路径
 ./scripts/build-app.sh      # 打包 build/HourRest.app
 swift scripts/make-icon.swift   # 重新生成应用图标
-./scripts/release.sh        # 打包发布用的通用二进制 build/HourRest-<版本>.zip
+./scripts/release.sh        # 打包发布用的通用二进制 build/HourRest-<版本>.dmg
 ```
 
 ### 不用等一个小时：调试模式
